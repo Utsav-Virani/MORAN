@@ -18,104 +18,100 @@ from tools import dataset
 from tools import utils
 from models.moran import MORAN
 
-# Parsing command-line arguments
-argParser = argparse.ArgumentParser()
-argParser.add_argument('--train_nips', required=True, default='/content/data/nips_data', help='path to NIPS dataset')
-argParser.add_argument('--train_cvpr', required=True, help='path to CVPR dataset')
-argParser.add_argument('--valroot', required=True, help='path to validation dataset')
-argParser.add_argument('--workers', type=int, help='number of data loading workers', default=2)
-argParser.add_argument('--batchSize', type=int, default=64, help='input batch size')
-argParser.add_argument('--imgH', type=int, default=64, help='the height of the input image to network')
-argParser.add_argument('--imgW', type=int, default=200, help='the width of the input image to network')
-argParser.add_argument('--targetH', type=int, default=32, help='the height of the output image from network')
-argParser.add_argument('--targetW', type=int, default=100, help='the width of the output image from network')
-argParser.add_argument('--nh', type=int, default=256, help='size of the LSTM hidden state')
-argParser.add_argument('--niter', type=int, default=10, help='number of epochs to train for')
-argParser.add_argument('--lr', type=float, default=0.01, help='learning rate for Critic')
-argParser.add_argument('--cuda', action='store_true', help='enables CUDA')
-argParser.add_argument('--ngpu', type=int, default=1, help='number of GPUs to use')
-argParser.add_argument('--MORAN', default='', help="path to model (to continue training)")
-argParser.add_argument('--alphabet', type=str, default='0:1:2:3:4:5:6:7:8:9:a:b:c:d:e:f:g:h:i:j:k:l:m:n:o:p:q:r:s:t:u:v:w:x:y:z:$')
-argParser.add_argument('--sep', type=str, default=':')
-argParser.add_argument('--experiment', default='/content/output333/', help='where to store samples and models')
-argParser.add_argument('--displayInterval', type=int, default=100, help='interval to be displayed')
-argParser.add_argument('--n_test_disp', type=int, default=10, help='number of samples to display when testing')
-argParser.add_argument('--valInterval', type=int, default=1000, help='interval to perform validation')
-argParser.add_argument('--saveInterval', type=int, default=40000, help='interval to save model weights')
-argParser.add_argument('--adam', action='store_true', help='whether to use Adam optimizer (default is RMSprop)')
-argParser.add_argument('--beta1', type=float, default=0.5, help='beta1 for Adam optimizer (default=0.5)')
-argParser.add_argument('--adadelta', action='store_true', help='whether to use Adadelta optimizer (default is RMSprop)')
-argParser.add_argument('--sgd', action='store_true', help='whether to use SGD optimizer (default is RMSprop)')
-argParser.add_argument('--BidirDecoder', action='store_true', help='whether to use Bidirectional Decoder')
-
-# Parse arguments
-optParser = argParser.parse_args()
+configObject = argparse.Namespace()
+configObject.train_nips = '/kaggle/working/IP-Winter-OCR/ic03_867'
+configObject.train_cvpr = '/kaggle/working/IP-Winter-OCR/ic03_867'
+configObject.valroot = '/kaggle/working/IP-Winter-OCR/ic03_867'
+configObject.workers = 2
+configObject.batchSize = 64
+configObject.imgH = 64
+configObject.imgW = 200
+configObject.targetH = 32
+configObject.targetW = 100
+configObject.nh = 256
+configObject.niter = 10
+configObject.lr = 1
+configObject.cuda = True
+configObject.ngpu = 1
+configObject.MORAN = ''
+configObject.alphabet = '0:1:2:3:4:5:6:7:8:9:a:b:c:d:e:f:g:h:i:j:k:l:m:n:o:p:q:r:s:t:u:v:w:x:y:z:$'
+configObject.sep = ':'
+configObject.experiment = '/kaggle/working/IP-Winter-OCR/output/'
+configObject.displayInterval = 100
+configObject.n_test_disp = 10
+configObject.valInterval = 100
+configObject.saveInterval = 4000
+configObject.adam = False
+configObject.beta1 = 0.5
+configObject.adadelta = True
+configObject.sgd = False
+configObject.BidirDecoder = True
 
 # Checking if multi-GPU training is supported
-assert optParser.ngpu == 1, "Multi-GPU training is not supported yet, due to the variant lengths of the text in a batch."
+assert configObject.ngpu == 1, "Multi-GPU training is not supported yet, due to the variant lengths of the text in a batch."
 
 # Creating experiment directory if it doesn't exist
-if optParser.experiment is None:
-    optParser.experiment = 'expr'
-os.system('mkdir {0}'.format(optParser.experiment))
+if configObject.experiment is None:
+    configObject.experiment = 'expr'
+os.system('mkdir {0}'.format(configObject.experiment))
 
 # Setting random seed for reproducibility
-optParser.manualSeed = random.randint(1, 10000)  # fix seed
-print("Random Seed: ", optParser.manualSeed)
-random.seed(optParser.manualSeed)
-np.random.seed(optParser.manualSeed)
-torch.manual_seed(optParser.manualSeed)
+configObject.manualSeed = random.randint(1, 10000)  # fix seed
+print("Random Seed: ", configObject.manualSeed)
+random.seed(configObject.manualSeed)
+np.random.seed(configObject.manualSeed)
+torch.manual_seed(configObject.manualSeed)
 
 # Using cuDNN benchmark for faster training if available
 cudnn.benchmark = True
 
 # Checking CUDA availability
 if not torch.cuda.is_available():
-    assert not optParser.cuda, 'Your device does not support cuda.'
+    assert not configObject.cuda, 'Your device does not support cuda.'
 
 # Printing warning if CUDA device is available but not used
-if torch.cuda.is_available() and not optParser.cuda:
+if torch.cuda.is_available() and not configObject.cuda:
     print("You should try -cuda option because your device is compitable")
 
 # Creating training dataset loader
-trainingDataset = dataset.lmdbDataset(root=optParser.train_nips,
-                                    transform=dataset.resizeNormalize((optParser.imgW, optParser.imgH)),
-                                    reverse=optParser.BidirDecoder)
+trainingDataset = dataset.lmdbDataset(root=configObject.train_nips,
+                                    transform=dataset.resizeNormalize((configObject.imgW, configObject.imgH)),
+                                    reverse=configObject.BidirDecoder)
 assert trainingDataset
 
 trainingLoader = torch.utils.data.DataLoader(
-    trainingDataset, batch_size=optParser.batchSize,
-    shuffle=False, sampler=dataset.randomSequentialSampler(trainingDataset, optParser.batchSize),
-    num_workers=int(optParser.workers))
+    trainingDataset, batch_size=configObject.batchSize,
+    shuffle=False, sampler=dataset.randomSequentialSampler(trainingDataset, configObject.batchSize),
+    num_workers=int(configObject.workers))
 
 # Creating validation dataset loader
-testingDataset = dataset.lmdbDataset(root=optParser.valroot,
-                                   transform=dataset.resizeNormalize((optParser.imgW, optParser.imgH)), reverse=optParser.BidirDecoder)
+testingDataset = dataset.lmdbDataset(root=configObject.valroot,
+                                   transform=dataset.resizeNormalize((configObject.imgW, configObject.imgH)), reverse=configObject.BidirDecoder)
 
 # Calculating number of classes in the alphabet
-numberOfClass = len(optParser.alphabet.split(optParser.sep))
+numberOfClass = len(configObject.alphabet.split(configObject.sep))
 nc = 1
 
 # Creating label converter
-converter = utils.strLabelConverterForAttention(optParser.alphabet, optParser.sep)
+converter = utils.strLabelConverterForAttention(configObject.alphabet, configObject.sep)
 
 # Defining CrossEntropy loss criterion
 criterion = torch.nn.CrossEntropyLoss()
 
 # Moving model and data to GPU if CUDA is enabled
-if optParser.cuda:
-    MORAN = MORAN(nc, numberOfClass, optParser.nh, optParser.targetH, optParser.targetW, BidirDecoder=optParser.BidirDecoder, CUDA=optParser.cuda)
+if configObject.cuda:
+    MORAN = MORAN(nc, numberOfClass, configObject.nh, configObject.targetH, configObject.targetW, BidirDecoder=configObject.BidirDecoder, CUDA=configObject.cuda)
 else:
-    MORAN = MORAN(nc, numberOfClass, optParser.nh, optParser.targetH, optParser.targetW, BidirDecoder=optParser.BidirDecoder,
-                  inputDataType='torch.FloatTensor', CUDA=optParser.cuda)
+    MORAN = MORAN(nc, numberOfClass, configObject.nh, configObject.targetH, configObject.targetW, BidirDecoder=configObject.BidirDecoder,
+                  inputDataType='torch.FloatTensor', CUDA=configObject.cuda)
 
 # Loading pretrained model if provided
-if optParser.MORAN != '':
-    print('loading pretrained model from %s' % optParser.MORAN)
-    if optParser.cuda:
-        state_dict = torch.load(optParser.MORAN)
+if configObject.MORAN != '':
+    print('loading pretrained model from %s' % configObject.MORAN)
+    if configObject.cuda:
+        state_dict = torch.load(configObject.MORAN)
     else:
-        state_dict = torch.load(optParser.MORAN, map_location='cpu')
+        state_dict = torch.load(configObject.MORAN, map_location='cpu')
     MORAN_state_dict_rename = OrderedDict()
     for k, v in state_dict.items():
         name = k.replace("module.", "")  # remove `module.`
@@ -123,15 +119,15 @@ if optParser.MORAN != '':
     MORAN.load_state_dict(MORAN_state_dict_rename, strict=True)
 
 # Creating tensors for images, texts, and lengths
-image = torch.FloatTensor(optParser.batchSize, nc, optParser.imgH, optParser.imgW)
-text = torch.LongTensor(optParser.batchSize * 5)
-text_rev = torch.LongTensor(optParser.batchSize * 5)
-length = torch.IntTensor(optParser.batchSize)
+image = torch.FloatTensor(configObject.batchSize, nc, configObject.imgH, configObject.imgW)
+text = torch.LongTensor(configObject.batchSize * 5)
+text_rev = torch.LongTensor(configObject.batchSize * 5)
+length = torch.IntTensor(configObject.batchSize)
 
 # Moving tensors to GPU if CUDA is enabled
-if optParser.cuda:
+if configObject.cuda:
     MORAN.cuda()
-    MORAN = torch.nn.DataParallel(MORAN, device_ids=range(optParser.ngpu))
+    MORAN = torch.nn.DataParallel(MORAN, device_ids=range(configObject.ngpu))
     image = image.cuda()
     text = text.cuda()
     text_rev = text_rev.cuda()
@@ -146,30 +142,20 @@ length = Variable(length)
 avgLoss = utils.averager()
 
 # Setting up optimizer
-if optParser.adam:
-    optimizer = optim.Adam(MORAN.parameters(), lr=optParser.lr, betas=(optParser.beta1, 0.999))
-elif optParser.adadelta:
-    optimizer = optim.Adadelta(MORAN.parameters(), lr=optParser.lr)
-elif optParser.sgd:
-    optimizer = optim.SGD(MORAN.parameters(), lr=optParser.lr, momentum=0.9)
+if configObject.adam:
+    optimizer = optim.Adam(MORAN.parameters(), lr=configObject.lr, betas=(configObject.beta1, 0.999))
+elif configObject.adadelta:
+    optimizer = optim.Adadelta(MORAN.parameters(), lr=configObject.lr)
+elif configObject.sgd:
+    optimizer = optim.SGD(MORAN.parameters(), lr=configObject.lr, momentum=0.9)
 else:
-    optimizer = optim.RMSprop(MORAN.parameters(), lr=optParser.lr)
+    optimizer = optim.RMSprop(MORAN.parameters(), lr=configObject.lr)
 
 
 def val(dataset, criterion):
-    """
-    Validation function for evaluating model performance on validation dataset.
-
-    Args:
-        dataset (torch.utils.data.Dataset): Validation dataset.
-        criterion (torch.nn.Module): Loss criterion.
-
-    Returns:
-        float: Accuracy achieved on the validation dataset.
-    """
-    print('Start val')
+    print('---Starting Validation---')
     dataLoader = torch.utils.data.DataLoader(
-        dataset, shuffle=False, batch_size=optParser.batchSize, num_workers=int(optParser.workers))
+        dataset, shuffle=False, batch_size=configObject.batchSize, num_workers=int(configObject.workers))
     val_Iterator = iter(dataLoader)
     numberOfCorrect = 0
     totalNum = 0
@@ -177,7 +163,7 @@ def val(dataset, criterion):
 
     for data in val_Iterator:
         # Performing forward pass and calculating loss
-        if optParser.BidirDecoder:
+        if configObject.BidirDecoder:
             cpu_images, cpu_texts, cpu_texts_rev = data
             utils.loadData(image, cpu_images)
             t, l = converter.encode(cpu_texts, scanned=True)
@@ -224,21 +210,15 @@ def val(dataset, criterion):
             totalNum += 1
 
     # Printing validation results
-    print("correct / total: %d / %d, " % (numberOfCorrect, totalNum))
+    print("[LOG] correct / total: %d / %d, " % (numberOfCorrect, totalNum))
     accuracy = numberOfCorrect / float(totalNum)
-    print('Test loss: %f, accuracy: %f' % (avgLoss.val(), accuracy))
+    print('[LOG] Test loss: %f, accuracy: %f' % (avgLoss.val(), accuracy))
     return accuracy
 
 
 def trainBatch():
-    """
-    Function for training on a batch of data.
-
-    Returns:
-        torch.Tensor: Loss for the batch.
-    """
     for data in trainingLoader:
-        if optParser.BidirDecoder:
+        if configObject.BidirDecoder:
             cpu_images, cpu_texts, cpu_texts_rev = data
             utils.loadData(image, cpu_images)
             t, l = converter.encode(cpu_texts, scanned=True)
@@ -270,14 +250,14 @@ acc = 0
 acc_tmp = 0
 
 # Training loop
-for epoch in range(optParser.niter):
+for epoch in range(configObject.niter):
 
     trainingIterator = iter(trainingLoader)
     i = 0
     while i < len(trainingLoader):
 
         # Performing validation at specified intervals
-        if i % optParser.valInterval == 0:
+        if i % configObject.valInterval == 0:
             for p in MORAN.parameters():
                 p.requires_grad = False
             MORAN.eval()
@@ -287,12 +267,12 @@ for epoch in range(optParser.niter):
             if acc_tmp > acc:
                 acc = acc_tmp
                 torch.save(MORAN.state_dict(), '{0}/{1}_{2}.pth'.format(
-                    optParser.experiment, i, str(acc)[:6]))
+                    configObject.experiment, i, str(acc)[:6]))
 
         # Saving model weights at specified intervals
-        if i % optParser.saveInterval == 0:
+        if i % configObject.saveInterval == 0:
             torch.save(MORAN.state_dict(), '{0}/{1}_{2}.pth'.format(
-                optParser.experiment, epoch, i))
+                configObject.experiment, epoch, i))
 
         # Setting model to training mode
         for p in MORAN.parameters():
@@ -304,10 +284,10 @@ for epoch in range(optParser.niter):
         avgLoss.add(cost)
 
         # Printing training progress
-        if i % optParser.displayInterval == 0:
+        if i % configObject.displayInterval == 0:
             t1 = time.time()
-            print('Epoch: %d/%d; iter: %d/%d; Loss: %f; time: %.2f s;' %
-                  (epoch, optParser.niter, i, len(trainingLoader), avgLoss.val(), t1 - t0)),
+            print('[LOG] Epoch: %d/%d; iter: %d/%d; Loss: %f; time: %.2f s;' %
+                  (epoch, configObject.niter, i, len(trainingLoader), avgLoss.val(), t1 - t0)),
             avgLoss.reset()
             t0 = time.time()
 
