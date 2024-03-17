@@ -13,7 +13,7 @@ To install MORAN and its dependencies, you can use pip with the provided `requir
 
 ```bash
 pip install -r requirements.txt
-
+```
 ## Prerequisites
 Ensure that you have a CUDA-enabled GPU for optimal performance.
 
