@@ -14,6 +14,13 @@ To install MORAN and its dependencies, you can use pip with the provided `requir
 ```bash
 pip install -r requirements.txt
 ```
+
+## How To Train Model
+To Train the model follow the instruction in the `main.py` file execute bellow command:
+```bash
+python main.py
+```
+
 ## Prerequisites
 Ensure that you have a CUDA-enabled GPU for optimal performance.
 
