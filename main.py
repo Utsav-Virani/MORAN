@@ -86,7 +86,7 @@ assert trainingDataset
 trainingLoader = torch.utils.data.DataLoader(
     trainingDataset, batch_size=optParser.batchSize,
     shuffle=False, sampler=dataset.randomSequentialSampler(trainingDataset, optParser.batchSize),
-    numberOfWorkers=int(optParser.workers))
+    num_workers=int(optParser.workers))
 
 # Creating validation dataset loader
 testingDataset = dataset.lmdbDataset(root=optParser.valroot,
@@ -169,7 +169,7 @@ def val(dataset, criterion):
     """
     print('Start val')
     dataLoader = torch.utils.data.DataLoader(
-        dataset, shuffle=False, batch_size=optParser.batchSize, numberOfWorkers=int(optParser.workers))
+        dataset, shuffle=False, batch_size=optParser.batchSize, num_workers=int(optParser.workers))
     val_Iterator = iter(dataLoader)
     numberOfCorrect = 0
     totalNum = 0
