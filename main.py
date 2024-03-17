@@ -71,11 +71,11 @@ cudnn.benchmark = True
 
 # Checking CUDA availability
 if not torch.cuda.is_available():
-    assert not optParser.cuda, 'You don\'t have a CUDA device.'
+    assert not optParser.cuda, 'Your device does not support cuda.'
 
 # Printing warning if CUDA device is available but not used
 if torch.cuda.is_available() and not optParser.cuda:
-    print("WARNING: You have a CUDA device, so you should probably run with --cuda")
+    print("You should try -cuda option because your device is compitable")
 
 # Creating training dataset loader
 trainingDataset = dataset.lmdbDataset(root=optParser.train_nips,
