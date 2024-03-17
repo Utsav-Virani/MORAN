@@ -19,24 +19,24 @@ from tools import utils
 from models.moran import MORAN
 
 configObject = argparse.Namespace()
-configObject.train_nips = '/kaggle/working/IP-Winter-OCR/ic03_867'
-configObject.train_cvpr = '/kaggle/working/IP-Winter-OCR/ic03_867'
-configObject.valroot = '/kaggle/working/IP-Winter-OCR/ic03_867'
+configObject.train_nips = 'PATH_TO_DATASET'
+configObject.train_cvpr = 'PATH_TO_DATASET'
+configObject.valroot = 'PATH_TO_DATASET'
 configObject.workers = 2
 configObject.batchSize = 64
-configObject.imgH = 64
-configObject.imgW = 200
-configObject.targetH = 32
-configObject.targetW = 100
+configObject.imageHeight = 64
+configObject.imageWidth = 200
+configObject.targetHeight = 32
+configObject.targetWidth = 100
 configObject.nh = 256
-configObject.niter = 10
-configObject.lr = 1
+configObject.numberOfEpoch = 1000
+configObject.learningRate = 1
 configObject.cuda = True
-configObject.ngpu = 1
+configObject.numberOfGpus = 1
 configObject.MORAN = ''
 configObject.alphabet = '0:1:2:3:4:5:6:7:8:9:a:b:c:d:e:f:g:h:i:j:k:l:m:n:o:p:q:r:s:t:u:v:w:x:y:z:$'
 configObject.sep = ':'
-configObject.experiment = '/kaggle/working/IP-Winter-OCR/output/'
+configObject.experiment = 'PATH_TO_SAVE_MODELS'
 configObject.displayInterval = 100
 configObject.n_test_disp = 10
 configObject.valInterval = 100
@@ -48,7 +48,7 @@ configObject.sgd = False
 configObject.BidirDecoder = True
 
 # Checking if multi-GPU training is supported
-assert configObject.ngpu == 1, "Multi-GPU training is not supported yet, due to the variant lengths of the text in a batch."
+assert configObject.numberOfGpus == 1, "Multi-GPU training is not supported yet, due to the variant lengths of the text in a batch."
 
 # Creating experiment directory if it doesn't exist
 if configObject.experiment is None:
@@ -75,7 +75,7 @@ if torch.cuda.is_available() and not configObject.cuda:
 
 # Creating training dataset loader
 trainingDataset = dataset.lmdbDataset(root=configObject.train_nips,
-                                    transform=dataset.resizeNormalize((configObject.imgW, configObject.imgH)),
+                                    transform=dataset.resizeNormalize((configObject.imageWidth, configObject.imageHeight)),
                                     reverse=configObject.BidirDecoder)
 assert trainingDataset
 
@@ -86,7 +86,7 @@ trainingLoader = torch.utils.data.DataLoader(
 
 # Creating validation dataset loader
 testingDataset = dataset.lmdbDataset(root=configObject.valroot,
-                                   transform=dataset.resizeNormalize((configObject.imgW, configObject.imgH)), reverse=configObject.BidirDecoder)
+                                   transform=dataset.resizeNormalize((configObject.imageWidth, configObject.imageHeight)), reverse=configObject.BidirDecoder)
 
 # Calculating number of classes in the alphabet
 numberOfClass = len(configObject.alphabet.split(configObject.sep))
@@ -100,9 +100,9 @@ criterion = torch.nn.CrossEntropyLoss()
 
 # Moving model and data to GPU if CUDA is enabled
 if configObject.cuda:
-    MORAN = MORAN(nc, numberOfClass, configObject.nh, configObject.targetH, configObject.targetW, BidirDecoder=configObject.BidirDecoder, CUDA=configObject.cuda)
+    MORAN = MORAN(nc, numberOfClass, configObject.nh, configObject.targetHeight, configObject.targetWidth, BidirDecoder=configObject.BidirDecoder, CUDA=configObject.cuda)
 else:
-    MORAN = MORAN(nc, numberOfClass, configObject.nh, configObject.targetH, configObject.targetW, BidirDecoder=configObject.BidirDecoder,
+    MORAN = MORAN(nc, numberOfClass, configObject.nh, configObject.targetHeight, configObject.targetWidth, BidirDecoder=configObject.BidirDecoder,
                   inputDataType='torch.FloatTensor', CUDA=configObject.cuda)
 
 # Loading pretrained model if provided
@@ -119,7 +119,7 @@ if configObject.MORAN != '':
     MORAN.load_state_dict(MORAN_state_dict_rename, strict=True)
 
 # Creating tensors for images, texts, and lengths
-image = torch.FloatTensor(configObject.batchSize, nc, configObject.imgH, configObject.imgW)
+image = torch.FloatTensor(configObject.batchSize, nc, configObject.imageHeight, configObject.imageWidth)
 text = torch.LongTensor(configObject.batchSize * 5)
 text_rev = torch.LongTensor(configObject.batchSize * 5)
 length = torch.IntTensor(configObject.batchSize)
@@ -127,7 +127,7 @@ length = torch.IntTensor(configObject.batchSize)
 # Moving tensors to GPU if CUDA is enabled
 if configObject.cuda:
     MORAN.cuda()
-    MORAN = torch.nn.DataParallel(MORAN, device_ids=range(configObject.ngpu))
+    MORAN = torch.nn.DataParallel(MORAN, device_ids=range(configObject.numberOfGpus))
     image = image.cuda()
     text = text.cuda()
     text_rev = text_rev.cuda()
@@ -143,13 +143,13 @@ avgLoss = utils.averager()
 
 # Setting up optimizer
 if configObject.adam:
-    optimizer = optim.Adam(MORAN.parameters(), lr=configObject.lr, betas=(configObject.beta1, 0.999))
+    optimizer = optim.Adam(MORAN.parameters(), lr=configObject.learningRate, betas=(configObject.beta1, 0.999))
 elif configObject.adadelta:
-    optimizer = optim.Adadelta(MORAN.parameters(), lr=configObject.lr)
+    optimizer = optim.Adadelta(MORAN.parameters(), lr=configObject.learningRate)
 elif configObject.sgd:
-    optimizer = optim.SGD(MORAN.parameters(), lr=configObject.lr, momentum=0.9)
+    optimizer = optim.SGD(MORAN.parameters(), lr=configObject.learningRate, momentum=0.9)
 else:
-    optimizer = optim.RMSprop(MORAN.parameters(), lr=configObject.lr)
+    optimizer = optim.RMSprop(MORAN.parameters(), lr=configObject.learningRate)
 
 
 def val(dataset, criterion):
@@ -250,7 +250,7 @@ acc = 0
 acc_tmp = 0
 
 # Training loop
-for epoch in range(configObject.niter):
+for epoch in range(configObject.numberOfEpoch):
 
     trainingIterator = iter(trainingLoader)
     i = 0
@@ -287,7 +287,7 @@ for epoch in range(configObject.niter):
         if i % configObject.displayInterval == 0:
             t1 = time.time()
             print('[LOG] Epoch: %d/%d; iter: %d/%d; Loss: %f; time: %.2f s;' %
-                  (epoch, configObject.niter, i, len(trainingLoader), avgLoss.val(), t1 - t0)),
+                  (epoch, configObject.numberOfEpoch, i, len(trainingLoader), avgLoss.val(), t1 - t0)),
             avgLoss.reset()
             t0 = time.time()
 

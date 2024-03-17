@@ -1,3 +1,5 @@
 venv
 demo
 */__pycache__/
+
+test*.py
